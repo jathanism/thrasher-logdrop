@@ -1,0 +1,6 @@
+Tails a thrashd.log file and adds/removes entries to iptables filter chain.
+
+"holding down" = add drop
+"expired"      = remove drop
+
+No error-checking or general intelligence yet.
