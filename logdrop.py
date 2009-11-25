@@ -11,30 +11,36 @@ import re
 import sys
 import time
 from optparse import OptionParser
+import platform
 import warnings
+import syslog
 
 __version__ = 0.1
 
-
-blob = """Nov 18 18:53:21 46.21151.170 thrashd-PMPAuth_MTC: holding down address 64.180.110.186 triggered by 46.21188.76
-Nov 18 18:53:21 46.21151.170 thrashd-IdP: holding down address 114.36.191.204 triggered by 46.2178.170
-Nov 18 18:53:25 46.21151.170 thrashd-PMPAuth_MTC: holding down address 99.18.136.33 triggered by 46.21151.174
-Nov 18 18:53:26 188.205.185.131 thrashd-Search: holding down address 165.155.192.70 triggered by 188.205.202.18
-Nov 18 18:53:27 46.21151.170 thrashd-IdP: holding down address 118.161.147.10 triggered by 46.2178.168
-Nov 18 18:53:27 46.21151.170 thrashd-PMPAuth_MTC: holding down address 217.194.66.146 triggered by 188.205.137.82
-Nov 18 18:53:30 63.10.213.37 thrashd-Sink1: expired address 172.163.47.66"""
-log = blob.splitlines()
-
-log_re = re.compile(r'^(?P<timestamp>\w{3} \d\d \d\d:\d\d:\d\d) (?P<loghost>\d+\.\d+\.\d+\.\d+) (?P<instance>\S+): (?P<action>holding down|expired) address (?P<attacker>\d+\.\d+\.\d+\.\d+)\s?(?:triggered by (?P<trigger>\d+\.\d+\.\d+\.\d+))?') 
+log_re  = re.compile(r'^(?P<timestamp>\w{3} \d\d \d\d:\d\d:\d\d) (?P<loghost>\d+\.\d+\.\d+\.\d+) (?P<instance>\S+): (?P<action>holding down|expired) address (?P<attacker>\d+\.\d+\.\d+\.\d+)\s?(?:triggered by (?P<trigger>\d+\.\d+\.\d+\.\d+))?') 
 
 ACTIONS = {
     'holding down': 'I', # I = insert
     'expired': 'D',      # D = delete
 }
 
+activity = {}
+
+## warnings
 class IPTablesWarning(Warning): 
+    """
+    If interaction with iptables fails.
+    """
     pass
 
+## exceptions
+class IPTablesError(Exception): 
+    """
+    If interaction with iptables causes the program to exit.
+    """
+    pass
+
+## functions
 def iptables_interact(parts):
     """
     ## add
@@ -47,17 +53,29 @@ def iptables_interact(parts):
 
     ## execute
     cmd = "iptables -%s INPUT -s %s -j DROP" % (ACTIONS[p['action']], p['attacker'])
-    #status, output = commands.getstatusoutput(cmd)
-    #if status > 0:
-    #    warnings.warn('Problem interacting with iptables for %s' % p['attacker'], IPTablesWarning)
-    print cmd
+    status, output = commands.getstatusoutput(cmd)
+
+    activity[p['attacker']] = (p['action'], status,)
+    
+    return cmd, status, output
 
 def handle_line(line):
     print line,
-    line_parts = log_re.match(line).groupdict()
-    action     = line_parts['action']
 
-    iptables_interact(line_parts)
+    line_parts  = log_re.match(line).groupdict()
+    action      = line_parts['action']
+    attacker    = line_parts['attacker']
+
+    cmd, status, output = iptables_interact(line_parts)
+
+    if status > 0:
+        #warnings.warn('Problem interacting with iptables for %s' % p['attacker'], IPTablesWarning)
+        warnings.warn('IP %s (%s)' % (attacker, output), IPTablesWarning)
+        print '\t%s FAILURE' % attacker
+    else:
+        print '\t%s SUCCESS' % attacker
+        
+    print
 
 def tail_lines(fd, linesback=10):
     """
@@ -90,6 +108,9 @@ def tail_lines(fd, linesback=10):
     return lines[start:len(lines)-1]
 
 def do_tail(filename, lines, follow, func=handle_line):
+    """
+    Tail the file just like the standard 'tail' command.  Works as a pipe.
+    """
     fd = open(filename, 'r')
 
     for line in tail_lines(fd, lines):
@@ -98,7 +119,7 @@ def do_tail(filename, lines, follow, func=handle_line):
     if not follow:
         return
 
-    while 1:
+    while True:
         where = fd.tell()
         line = fd.readline()
         if not line:
@@ -117,15 +138,26 @@ def do_tail(filename, lines, follow, func=handle_line):
         else:
             func(line)
 
-def main(argv = sys.argv):
+def report_activity():
+    if activity:
+        print '\n%d lines filtered.\n' % len(activity)
+
+    for ip in activity:
+        print ip, activity[ip]
+
+def main(argv=None):
     parser = OptionParser()
     parser.add_option("-n", "--number", action="store", type="int", dest = "number", default=10)
     parser.add_option("-f", "--follow", action="store_true", dest = "follow", default=0)
     (options, args) = parser.parse_args()
+
     do_tail(args[0], options.number, options.follow, handle_line)
+
 
 if __name__ == "__main__":
     try:
         main(sys.argv)
     except KeyboardInterrupt:
         pass
+    finally:
+        report_activity()
