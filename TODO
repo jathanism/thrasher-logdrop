@@ -1,0 +1,13 @@
+TODO
+
+- sudo/root support
+- meaningful errors, warnings
+- quiet/verbose toggle
+- optionally suppress warnings
+- syslogging
+- daemon mode
+- query status while in daemon mode
+
+DONE
+
+- collect all activity and report them at end
