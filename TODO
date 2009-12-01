@@ -8,6 +8,12 @@ TODO
 - daemon mode
 - query status while in daemon mode
 
+- Replication
+  * Assign thrasher instances to a group. Whenever a log is seen with a holddown
+    where the originating thrasher instances is within that group, send an
+    inject packet to all other thraher instances in that group.
+  
+
 DONE
 
 - collect all activity and report them at end
