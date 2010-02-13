@@ -1,4 +1,8 @@
-Tails a thrashd.log file and adds/removes entries to iptables filter chain.
+Tails a thrashd.log file and adds/removes entries to iptables filter chain or routing table using route command.
+
+IPtables can tank the performance a host when you have >100k distinct IPs in an iptables filter chain (yes, some people have this many). However, injecting a local 'route' does not have the same performance impact at the same high count of unique IP's.
+
+Default method is still iptables.
 
 "holding down" = add drop
 "expired"      = remove drop
