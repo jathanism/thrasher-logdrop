@@ -12,7 +12,18 @@ TODO
   * Assign thrasher instances to a group. Whenever a log is seen with a holddown
     where the originating thrasher instances is within that group, send an
     inject packet to all other thraher instances in that group.
-  
+
+- Handle route errors
+  * exit code 1792 = failure
+  * 'SIOCDELRT: No such process' = route does not exist
+  * 'SIOCADDRT: File exists'     = route already exists
+
+- Handle iptables errors:
+  * As iptables does not check before adding a chain, so duplicates are possible,  
+    we should probably check for those and skip them.
+  * exit code 256 = failure
+  * 'iptables: Bad rule (does a matching rule exist in that chain?' = chain already exists
+
 
 DONE
 
