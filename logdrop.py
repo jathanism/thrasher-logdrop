@@ -3,8 +3,11 @@
 """ 
 Parses thrasher log to watch for activity.  
 Interact with iptables or route upon detected actions.
-
 """
+
+__author__ = 'Jathan McCollum <jathan+github@gmail.com>'
+__version__ = 0.2
+
 
 import commands
 import os
@@ -14,15 +17,14 @@ import time
 from optparse import OptionParser
 import warnings
 
-__version__ = 0.2
-
 
 ###############################
 ##   USER-SERVICABLE PARTS   ##
 ###############################
 
-# Default method set here. Change this if you dare!
-DEFAULT_METHOD='iptables'
+# Default method set here. Change this if you dare! Make sure it's a
+# method listed in VALID_METHODS & ACTIONS.
+DEFAULT_METHOD = 'iptables'
 
 ###############################
 ## END USER-SERVICABLE PARTS ##
@@ -32,6 +34,7 @@ DEFAULT_METHOD='iptables'
 VALID_METHODS = ('iptables', 'route',)
 
 # Mappings of actions and commands for use in interact()
+# (If you add a new method, you must also and an action)
 ACTIONS = {
     'route': {
         'holding down': 'add',
@@ -53,19 +56,28 @@ log_re  = re.compile(r'^(?P<timestamp>\w{3} \d\d \d\d:\d\d:\d\d) (?P<loghost>\d+
 
 
 class InteractionWarning(Warning): 
-    """
-    If interaction with filter method fails.
-    """
+    """If interaction with filter method fails."""
     pass
 
 class InteractionError(Exception): 
-    """
-    If interaction with filter method causes the program to exit.
-    """
+    """If interaction with filter method causes the program to exit."""
     pass
 
 
 def interact(parts, method):
+    """
+    Intended to be a generic interface to future additions of route injection
+    methods. Executes and returns status & output of the route injection command.
+
+    Expects:
+    * parts: Should be dictionary of line_parts broken up by handle_line
+    * method: The method designated by opts.method
+
+    Returns:
+    * command = The command string executed (used for debug)
+    * status = The return code of the command execution
+    * output = You have one guess what this is
+    """
     details = ACTIONS[method]
     command = details['command'] % (details[parts['action']], parts['attacker'])
     status, output = commands.getstatusoutput(command)
@@ -74,6 +86,10 @@ def interact(parts, method):
     return command, status, output
 
 def handle_line(line):
+    """
+    Splits up a log entry & kicks off the route injection with the parts
+    Tries to be informative. This output could probably use work.
+    """
     print line,
 
     line_parts = log_re.match(line).groupdict()
@@ -92,11 +108,11 @@ def handle_line(line):
 
 def tail_lines(fd, linesback=10):
     """
-    Snagged from Python Cookbook
+    Makes the program actlike TAIL(1). Borrowed from Python Cookbook.
     """
     avgcharsperline = 75
 
-    while 1:
+    while True:
         try:
             fd.seek(-1 * avgcharsperline * linesback, 2)
         except IOError:
@@ -121,8 +137,15 @@ def tail_lines(fd, linesback=10):
     return lines[start:len(lines)-1]
 
 def do_tail(filename, lines, follow, func=handle_line):
-    """
-    Tail the file just like the standard 'tail' command.  Works as a pipe.
+    """Tail the file just like the standard 'tail' command.  Works as a pipe.
+
+    You may execute it as if it were tail such as:
+
+        % logdrop -n50 -f /var/log/thrashd.log
+
+    Or as a pipe:
+
+        % grep 1.2.3 /var/log/thrashd.log | logdrop
     """
     fd = open(filename, 'r')
 
@@ -152,6 +175,7 @@ def do_tail(filename, lines, follow, func=handle_line):
             func(line)
 
 def report_activity():
+    """Another surprise function!"""
     if activity:
         print '\n%d lines filtered.\n' % len(activity)
 
@@ -159,10 +183,7 @@ def report_activity():
         print ip, activity[ip]
 
 def parse_args():
-    """
-    What do you think this does?
-
-    """
+    """What do you think this does?"""
     USAGE = "usage: %prog [OPTION]... [FILE]..."
 
     parser = OptionParser(usage=USAGE)
@@ -194,17 +215,15 @@ def parse_args():
     if opts.method and opts.method not in VALID_METHODS:
         _err("Pick a valid method: %s" % str(VALID_METHODS))
 
-    if opts.route:
-        opts.method = 'route'
-
-    if opts.iptables:
-        opts.method = 'iptables'
+    ## A little logic to automatically set opts.method to the chosen method 
+    [setattr(opts, 'method', M) for M in VALID_METHODS 
+            if M in opts.__dict__ and opts.__dict__[M]]
+    print 'Route injection mode set to: %s' % opts.method.upper()
 
     return opts, args
 
 def main():
     do_tail(args[0], opts.number, opts.follow, handle_line)
-
 
 if __name__ == "__main__":
     (opts, args) = parse_args()
