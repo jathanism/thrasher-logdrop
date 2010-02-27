@@ -6,7 +6,7 @@ Interact with iptables or route upon detected actions.
 """
 
 __author__ = 'Jathan McCollum <jathan+github@gmail.com>'
-__version__ = 0.2
+__version__ = '0.2'
 
 
 import commands
