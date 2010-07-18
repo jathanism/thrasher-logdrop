@@ -11,7 +11,7 @@ TODO
 - Replication
   * Assign thrasher instances to a group. Whenever a log is seen with a holddown
     where the originating thrasher instances is within that group, send an
-    inject packet to all other thraher instances in that group.
+    inject packet to all other thrasher instances in that group.
 
 - Handle route errors
   * exit code 1792 = failure
